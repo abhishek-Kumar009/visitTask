@@ -4,6 +4,7 @@ const mysqlConnection = require('../connection');
 const fs = require('fs');
 const multer = require('multer');
 const fastcsv = require('fast-csv');
+const validateData = require('../validateData');
 
 const upload = multer({
   dest: 'tmp/csv/'
@@ -22,6 +23,8 @@ Router.get('/', (req, res) => {
 
 Router.post('/', upload.single('file'), (req, res) => {
   try {
+
+    //Check whether the file is uploaded or not
     if (req.file) {
       let csvData = [];
       fastcsv
@@ -31,16 +34,27 @@ Router.post('/', upload.single('file'), (req, res) => {
         })
         .on('end', () => {
           csvData.shift();
-          query =
-            'INSERT INTO userInfo (id, name, date, steps, calories) VALUES ?';
-          mysqlConnection.query(query, [csvData], (err, response) => {
-            if (!err) {
-              //   res.send('Records were added successfully!', response);
-              console.log('Records added succesfully!', response);
-            } else {
-              console.log('Error:', err);
-            }
-          });
+
+          //Validate the data before entering into the database
+          const validationError = validateData(csvData);
+          if (validationError) {
+            res.status(403).json({
+              error: validationError
+            });
+
+          } else {
+            query =
+              'INSERT INTO userInfo (id, name, date, steps, calories) VALUES ?';
+            mysqlConnection.query(query, [csvData], (err, response) => {
+              if (!err) {
+                // res.send('Records were added successfully!', response);
+                console.log('Records added succesfully!', response);
+              } else {
+                console.log('Error:', err);
+              }
+            });
+
+          }
           fs.unlinkSync(req.file.path);
         });
       res.status(200).send('Records were successfully entered!');
